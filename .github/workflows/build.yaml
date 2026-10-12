@@ -1,0 +1,122 @@
+# GitHub Actions 화면에 표시되는 Workflow 이름
+name: Build and push to NCR
+
+# 수동 실행만 허용: Actions → Run workflow
+# push만으로는 이 Workflow가 실행되지 않음
+on:
+  workflow_dispatch:
+
+# GitHub가 자동 발급하는 GITHUB_TOKEN의 권한
+# NCR 인증 권한과는 별개이며, 저장소 읽기만 허용
+permissions:
+  contents: read
+
+# 같은 저장소에서 이미지 빌드 작업의 동시 실행을 제한
+concurrency:
+  group: ncr-image-build
+  # 새 요청이 와도 진행 중인 빌드를 취소하지 않음
+  cancel-in-progress: false
+
+jobs:
+  # 첫 번째 Job: Kubernetes manifest 렌더링 검증
+  validate:
+    # 수동 실행 시 main 브랜치를 선택한 경우만 실행
+    if: github.ref == 'refs/heads/main'
+
+    # GitHub가 제공하는 Runner에서 실행
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+
+    steps:
+      # 실행 대상 commit의 저장소 파일을 작업 공간에 내려받음
+      - uses: actions/checkout@v7
+        with:
+          # checkout 인증정보를 이후 Git 명령에 유지하지 않음
+          persist-credentials: false
+
+      # YAML 파싱과 Kustomize 파일 참조를 확인
+      # 클러스터 적용·Kubernetes 스키마 검증은 하지 않음
+      - name: Validate Kustomize rendering
+        run: |
+          kubectl kustomize gitops/apps/nginx-web > /dev/null
+          kubectl kustomize gitops/infra/gateway > /dev/null
+
+  # 두 번째 Job: Docker 이미지 빌드 및 NCR 업로드
+  build:
+    # validate Job이 성공한 경우에만 실행
+    needs: validate
+
+    # 모든 라벨이 일치하는 Self-hosted Runner 선택
+    # 현재 mgmt 서버의 mgmt-nks-runner에서 실행
+    runs-on: [self-hosted, linux, x64, ncp-build]
+    timeout-minutes: 15
+
+    env:
+      # mgmt 서버에서 접근할 수 있는 NCR Private Endpoint
+      NCR_REGISTRY: klgghf8x.kr.private-ncr.ntruss.com
+
+    steps:
+      # validate와 다른 Runner이므로 소스를 다시 checkout
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      # 실제 실행 계정과 Docker daemon 접근 권한 확인
+      - name: Check Docker access
+        run: |
+          whoami
+          docker version
+
+      - name: Login, build and push
+        shell: bash
+
+        # GitHub Repository Secrets를 이 단계에만 전달
+        # 실제 Access Key·Secret Key는 YAML에 직접 작성하지 않음
+        env:
+          NCR_ACCESS_KEY_ID: ${{ secrets.NCR_ACCESS_KEY_ID }}
+          NCR_SECRET_ACCESS_KEY: ${{ secrets.NCR_SECRET_ACCESS_KEY }}
+
+        run: |
+          # 명령 실패, 미정의 변수, 파이프 내부 실패 시 중단
+          set -euo pipefail
+
+          # GitHub Secrets 값이 비어 있으면 로그인 전에 실패
+          test -n "$NCR_ACCESS_KEY_ID"
+          test -n "$NCR_SECRET_ACCESS_KEY"
+
+          # 이번 실행 전용 Docker 인증 폴더 생성
+          # 기존 root/Runner의 Docker 인증 설정과 분리
+          export DOCKER_CONFIG
+          DOCKER_CONFIG="$(mktemp -d "$RUNNER_TEMP/ncr-auth.XXXXXX")"
+
+          # Bash 종료 시 NCR 로그아웃 및 임시 인증파일 정리
+          # 이미지와 빌드 캐시는 삭제하지 않음
+          cleanup() {
+            docker logout "$NCR_REGISTRY" >/dev/null 2>&1 || true
+            rm -f "$DOCKER_CONFIG/config.json"
+            rmdir "$DOCKER_CONFIG" || true
+          }
+          trap cleanup EXIT
+
+          # NCR 로그인: 비밀번호를 명령 인자가 아닌 표준입력으로 전달
+          printf '%s' "$NCR_SECRET_ACCESS_KEY" |
+            docker login "$NCR_REGISTRY" \
+              --username "$NCR_ACCESS_KEY_ID" \
+              --password-stdin
+
+          # 소스 commit과 이미지를 연결하는 태그 생성
+          # 동일 commit 재실행 시 같은 태그가 사용됨
+          IMAGE="$NCR_REGISTRY/nginx-lab:sha-$GITHUB_SHA"
+
+          # app/Dockerfile과 app 폴더를 사용해 빌드
+          # --pull: 기반 이미지의 최신 상태를 Registry에서 확인
+          docker build --pull -t "$IMAGE" ./app
+
+          # 생성된 이미지를 NCR로 업로드
+          docker push "$IMAGE"
+
+          # 인증정보가 아닌 최종 이미지 참조만 출력
+          printf 'Published image: %s\n' "$IMAGE"
+
+# 현재 범위: manifest 렌더링 검증 → 이미지 빌드 → NCR push
+# NKS 배포·GitOps 파일 변경·취약점 검사·컨테이너 응답 테스트는 미포함
