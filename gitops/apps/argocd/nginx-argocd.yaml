@@ -1,0 +1,33 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: nginx-web
+  namespace: argocd
+spec:
+  project: default
+
+  source:
+    repoURL: https://github.com/manmanjae/ncp-nks-devops.git
+    targetRevision: main
+    # 앱만 관리하며 Gateway·ALB 경로는 제외
+    path: gitops/apps/nginx-web
+
+  destination:
+    # Argo CD가 설치된 동일 NKS 클러스터
+    server: https://kubernetes.default.svc
+    namespace: web-app
+
+  # Pod 수는 HPA가 관리하므로 비교 대상에서 제외
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      name: nginx-web
+      namespace: web-app
+      jsonPointers:
+        - /spec/replicas
+
+  syncPolicy:
+    # automated를 지정하지 않아 Manual Sync로 시작
+    syncOptions:
+      # Sync할 때도 HPA가 관리하는 replicas를 존중
+      - RespectIgnoreDifferences=true
