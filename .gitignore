@@ -1,0 +1,23 @@
+# 로컬 인증정보
+.env
+.env.*
+!.env.example
+config.json
+configure
+kubeconfig
+kubeconfig.*
+.kube/
+.docker/
+*.pem
+*.key
+
+# 실습 Secret 원문
+00.secret/
+**/00.secret/
+ncr-local-secret.yaml
+ncr-local-regcred.yaml
+
+# 편집기 임시 파일
+*.swp
+*.swo
+*~

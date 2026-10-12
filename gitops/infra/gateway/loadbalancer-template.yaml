@@ -1,0 +1,22 @@
+apiVersion: loadbalancer.vnks.ncloud.com/v1alpha1
+kind: LoadBalancerTemplate
+metadata:
+  name: nginx-alb
+  namespace: web-app
+spec:
+  networkType: PUBLIC
+  size: SMALL
+  lbSubnetIds:
+    - 328734
+  idleTimeoutSeconds: 60
+  accessLogEnabled: false
+  skipAcgUpdate: false
+  defaults:
+    targetGroup:
+      protocol: HTTP
+      algorithmType: RR
+      healthCheck:
+        protocol: HTTP
+        method: GET
+        path: /
+        port: 0
