@@ -1,0 +1,31 @@
+name: Validate manifests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Show kubectl version
+        run: kubectl version --client
+
+      - name: Render application manifests
+        run: kubectl kustomize gitops/apps/nginx-web > /dev/null
+
+      - name: Render gateway manifests
+        run: kubectl kustomize gitops/infra/gateway > /dev/null
