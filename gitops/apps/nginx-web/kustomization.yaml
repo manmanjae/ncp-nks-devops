@@ -5,3 +5,5 @@ resources:
   - service.yaml
   - hpa.yaml
   - pdb.yaml
+      # 브랜치 보호 검증용: 존재하지 않는 파일
+  - deliberate-missing.yaml
