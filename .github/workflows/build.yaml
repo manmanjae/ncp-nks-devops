@@ -170,30 +170,30 @@ jobs:
           yq --version
           gh --version
           # 이전 build Job의 이미지 주소 전달 확인
-if [[ -z "${IMAGE:-}" ]]; then
-  echo "::error::build Job에서 이미지 주소가 전달되지 않았습니다."
-  exit 1
-fi
-
-# 배포 파일 존재 확인
-if [[ ! -f "$MANIFEST" ]]; then
-  echo "::error::Deployment 파일을 찾을 수 없습니다: $MANIFEST"
-  exit 1
-fi
-
-# 리소스 종류 확인
-KIND="$(yq '.kind' "$MANIFEST")"
-if [[ "$KIND" != "Deployment" ]]; then
-  echo "::error::예상한 Deployment가 아닙니다. kind=$KIND"
-  exit 1
-fi
-
-# nginx 컨테이너가 정확히 하나인지 확인
-COUNT="$(yq '.spec.template.spec.containers | map(select(.name == "nginx")) | length' "$MANIFEST")"
-if [[ "$COUNT" != "1" ]]; then
-  echo "::error::nginx 컨테이너 개수가 예상과 다릅니다: $COUNT"
-  exit 1
-fi
+          if [[ -z "${IMAGE:-}" ]]; then
+            echo "::error::build Job에서 이미지 주소가 전달되지 않았습니다."
+            exit 1
+          fi
+          
+          # 배포 파일 존재 확인
+          if [[ ! -f "$MANIFEST" ]]; then
+            echo "::error::Deployment 파일을 찾을 수 없습니다: $MANIFEST"
+            exit 1
+          fi
+          
+          # 리소스 종류 확인
+          KIND="$(yq '.kind' "$MANIFEST")"
+          if [[ "$KIND" != "Deployment" ]]; then
+            echo "::error::예상한 Deployment가 아닙니다. kind=$KIND"
+            exit 1
+          fi
+          
+          # nginx 컨테이너가 정확히 하나인지 확인
+          COUNT="$(yq '.spec.template.spec.containers | map(select(.name == "nginx")) | length' "$MANIFEST")"
+          if [[ "$COUNT" != "1" ]]; then
+            echo "::error::nginx 컨테이너 개수가 예상과 다릅니다: $COUNT"
+            exit 1
+          fi
 
           # nginx 컨테이너의 이미지 필드만 변경
           yq -i \
