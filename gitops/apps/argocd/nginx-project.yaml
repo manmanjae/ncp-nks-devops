@@ -1,0 +1,30 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: nginx-web
+  namespace: argocd
+spec:
+  description: nginx 실습 앱의 배포 범위를 제한합니다.
+
+  # 허용 Git 저장소
+  sourceRepos:
+    - https://github.com/manmanjae/ncp-nks-devops.git
+
+  # 허용 클러스터와 네임스페이스
+  destinations:
+    - server: https://kubernetes.default.svc
+      namespace: web-app
+
+  # 클러스터 범위 리소스는 허용하지 않음
+  clusterResourceWhitelist: []
+
+  # 현재 앱에서 사용하는 리소스만 허용
+  namespaceResourceWhitelist:
+    - group: apps
+      kind: Deployment
+    - group: ""
+      kind: Service
+    - group: autoscaling
+      kind: HorizontalPodAutoscaler
+    - group: policy
+      kind: PodDisruptionBudget
