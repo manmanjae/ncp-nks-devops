@@ -5,3 +5,5 @@ resources:
   - service.yaml
   - hpa.yaml
   - pdb.yaml
+      # CI 실패 검증용: 의도적으로 존재하지 않는 파일
+  - deliberate-missing.yaml
