@@ -148,7 +148,8 @@ jobs:
       pull-requests: write
 
     env:
-      IMAGE: ${{ needs.build.outputs.image }}
+      # build Job이 사용한 것과 동일한 Registry·이미지·commit SHA
+      IMAGE: klgghf8x.kr.private-ncr.ntruss.com/nginx-lab:sha-${{ github.sha }}
       MANIFEST: gitops/apps/nginx-web/deployment.yaml
 
     steps:
