@@ -51,6 +51,11 @@ jobs:
     runs-on: [self-hosted, linux, x64, ncp-build]
     timeout-minutes: 15
 
+    # 빌드한 이미지 주소를 다음 Job에 전달
+    outputs:
+      image: ${{ steps.publish.outputs.image }}
+
+
     env:
       # mgmt 서버에서 접근할 수 있는 NCR Private Endpoint
       NCR_REGISTRY: klgghf8x.kr.private-ncr.ntruss.com
@@ -93,8 +98,20 @@ jobs:
           # 이미지와 빌드 캐시는 삭제하지 않음
           cleanup() {
             docker logout "$NCR_REGISTRY" >/dev/null 2>&1 || true
-            rm -f "$DOCKER_CONFIG/config.json"
-            rmdir "$DOCKER_CONFIG" || true
+
+            # 이번 실행에서 만든 임시 경로만 정리
+            case "$DOCKER_CONFIG" in
+              "$RUNNER_TEMP"/ncr-auth.*)
+                if [[ -d "$DOCKER_CONFIG" ]]; then
+                  find "$DOCKER_CONFIG" -depth -mindepth 1 -delete
+                  rmdir "$DOCKER_CONFIG"
+                fi
+                ;;
+              *)
+                printf 'Unexpected cleanup path; refusing deletion.\n' >&2
+                return 1
+                ;;
+            esac
           }
           trap cleanup EXIT
 
@@ -115,8 +132,85 @@ jobs:
           # 생성된 이미지를 NCR로 업로드
           docker push "$IMAGE"
 
-          # 인증정보가 아닌 최종 이미지 참조만 출력
+          # push 성공 후에만 이미지 주소를 Job output으로 전달
+          printf 'image=%s\n' "$IMAGE" >> "$GITHUB_OUTPUT"
           printf 'Published image: %s\n' "$IMAGE"
 
-# 현재 범위: manifest 렌더링 검증 → 이미지 빌드 → NCR push
-# NKS 배포·GitOps 파일 변경·취약점 검사·컨테이너 응답 테스트는 미포함
+  # 3. GitHub-hosted Runner에서 배포 변경 PR 생성
+  propose-deployment:
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+
+    # 쓰기 권한은 이 Job에만 부여
+    permissions:
+      contents: write
+      pull-requests: write
+
+    env:
+      IMAGE: ${{ needs.build.outputs.image }}
+      MANIFEST: gitops/apps/nginx-web/deployment.yaml
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # 최신 main을 기준으로 배포 파일 수정
+          ref: main
+          # 이 Job은 브랜치 push가 필요하므로 인증정보 유지
+          persist-credentials: true
+
+      - name: Update deployment image and create PR
+        shell: bash
+        env:
+          # 개인 PAT 대신 이번 Job의 GITHUB_TOKEN 사용
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          yq --version
+          gh --version
+          test -n "$IMAGE"
+
+          # 예상한 Deployment와 nginx 컨테이너인지 확인
+          test "$(yq '.kind' "$MANIFEST")" = "Deployment"
+          test "$(yq '.spec.template.spec.containers | map(select(.name == "nginx")) | length' "$MANIFEST")" = "1"
+
+          # nginx 컨테이너의 이미지 필드만 변경
+          yq -i \
+            '(.spec.template.spec.containers[] | select(.name == "nginx") | .image) = strenv(IMAGE)' \
+            "$MANIFEST"
+
+          # 수정한 manifest의 렌더링 재검증
+          kubectl kustomize gitops/apps/nginx-web > /dev/null
+          git diff --check
+
+          # 이미 동일 이미지라면 PR 생성 생략
+          if git diff --quiet -- "$MANIFEST"; then
+            printf 'Deployment already references this image.\n'
+            exit 0
+          fi
+
+          # 실행별 고유 브랜치: 기존 브랜치를 강제로 덮어쓰지 않음
+          BRANCH="deploy/nginx-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          git switch -c "$BRANCH"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          # 배포 파일 하나만 커밋
+          git add "$MANIFEST"
+          git commit -m "Deploy nginx image sha-$GITHUB_SHA"
+          git push origin "$BRANCH"
+
+          # 승인·Merge는 사람이 수행
+          gh pr create \
+            --repo "$GITHUB_REPOSITORY" \
+            --base main \
+            --head "$BRANCH" \
+            --title "Deploy nginx ${GITHUB_SHA:0:7}" \
+            --body "Image: $IMAGE
+          Source commit: $GITHUB_SHA
+          Build run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID
+
+          Review the image change before merging.
+          Argo CD sync remains manual."
