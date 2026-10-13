@@ -32,7 +32,7 @@ spec:
         - name: ncr-local-secret
       containers:
         - name: nginx
-          image: klgghf8x.kr.private-ncr.ntruss.com/nginx-lab:sha-13516ab3f83fbcf7fb4371b25d6ded2f07f94482
+          image: klgghf8x.kr.private-ncr.ntruss.com/nginx-lab:sha-d7929e6e82b6549a03d36dd658ae9bf7a4e566a9
           imagePullPolicy: Always
           ports:
             - name: http
