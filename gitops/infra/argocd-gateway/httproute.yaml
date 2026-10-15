@@ -7,7 +7,7 @@ spec:
   parentRefs:
     - name: nginx-gateway
       namespace: web-app
-      sectionName: argocd-https
+      sectionName: https
   hostnames:
     - argocd.mapprime.co.kr
   rules:

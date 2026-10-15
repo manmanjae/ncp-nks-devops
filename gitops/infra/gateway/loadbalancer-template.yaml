@@ -11,23 +11,26 @@ spec:
   idleTimeoutSeconds: 60
   accessLogEnabled: false
   skipAcgUpdate: false
+
+
   defaults:
     targetGroup:
-      protocol: HTTP
+      protocol: HTTPS
       algorithmType: RR
       healthCheck:
-        protocol: HTTP
+        protocol: HTTPS
         method: GET
-        path: /
+        path: /healthz
         port: 0
 
-  # HTTPS Listener에만 적용
   listeners:
     - port: 443
       protocol: HTTPS
+      aclId: 0
       tls:
         certificateNos:
-          - 69648
+          - 69648  # argocd.mapprime.co.kr
+          - 69668  # kimmj.mapprime.co.kr
         minVersion: TLSV12
       targetGroup:
         protocol: HTTPS
