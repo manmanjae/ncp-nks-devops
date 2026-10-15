@@ -5,18 +5,18 @@ metadata:
   namespace: web-app
 spec:
   parentRefs:
-    - group: gateway.networking.k8s.io
-      kind: Gateway
-      name: nginx-gateway
-      sectionName: http
+    - name: nginx-gateway
+      sectionName: https
+
+  hostnames:
+    - kimmj.mapprime.co.kr
+
   rules:
     - matches:
         - path:
             type: PathPrefix
             value: /
       backendRefs:
-        - group: ""
-          kind: Service
-          name: nginx-web
-          port: 80
+        - name: nginx-web
+          port: 443
           weight: 1

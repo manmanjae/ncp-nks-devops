@@ -10,22 +10,19 @@ spec:
       group: loadbalancer.vnks.ncloud.com
       kind: LoadBalancerTemplate
       name: nginx-alb
-  listeners:
-    - name: http
-      protocol: HTTP
-      port: 80
-      allowedRoutes:
-        namespaces:
-          from: Same
 
-    # argocd 네임스페이스의 Route만 연결 허용
-    - name: argocd-https
-      hostname: argocd.mapprime.co.kr
+  listeners:
+    # 기존 Argo CD Route 참조를 유지하기 위해 이름 유지
+    - name: https
       protocol: HTTPS
       port: 443
       allowedRoutes:
         namespaces:
           from: Selector
           selector:
-            matchLabels:
-              kubernetes.io/metadata.name: argocd
+            matchExpressions:
+              - key: kubernetes.io/metadata.name
+                operator: In
+                values:
+                  - web-app
+                  - argocd
