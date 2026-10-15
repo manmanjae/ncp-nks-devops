@@ -5,3 +5,7 @@ resources:
   - service.yaml
   - hpa.yaml
   - pdb.yaml
+configMapGenerator:
+  - name: nginx-web-config
+    files:
+      - default.conf=nginx.conf
