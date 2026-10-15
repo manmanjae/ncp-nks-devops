@@ -17,3 +17,15 @@ spec:
       allowedRoutes:
         namespaces:
           from: Same
+
+    # argocd 네임스페이스의 Route만 연결 허용
+    - name: argocd-https
+      hostname: argocd.mapprime.co.kr
+      protocol: HTTPS
+      port: 443
+      allowedRoutes:
+        namespaces:
+          from: Selector
+          selector:
+            matchLabels:
+              kubernetes.io/metadata.name: argocd

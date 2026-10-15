@@ -20,3 +20,20 @@ spec:
         method: GET
         path: /
         port: 0
+
+  # HTTPS Listener에만 적용
+  listeners:
+    - port: 443
+      protocol: HTTPS
+      tls:
+        certificateNos:
+          - 69648
+        minVersion: TLSV12
+      targetGroup:
+        protocol: HTTPS
+        algorithmType: RR
+        healthCheck:
+          protocol: HTTPS
+          method: GET
+          path: /healthz
+          port: 0
