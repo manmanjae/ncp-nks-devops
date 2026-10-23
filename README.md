@@ -184,6 +184,38 @@ PR은 변경 이력의 근거입니다. 최초 PR 뒤 추가 수정이 있었으
 - Kubernetes 스키마 검사, 이미지 취약점 검사, digest 고정·서명
 - workflow 미사용 output·주석 정리, argocd-gateway 신규 경로의 CI 검증 보강
 
-다음 학습은 Python 기본 라이브러리로 HTTPS 상태·응답시간·오류 종류를 점검하는 작은 도구부터 진행할 계획입니다. 계획을 구현 성과로 표시하지 않습니다.
+Python 표준 라이브러리 기반 HTTPS 점검 CLI를 구현하고, 정상 응답·HTTP 오류·연결 오류에 대한 단위 테스트 3개와 GitHub Actions 자동 테스트를 추가했습니다. PR #11에서 검사 통과 후 main에 병합했습니다.
 
+## Python HTTPS 점검 도구
 
+URL의 HTTP 상태와 응답 헤더 수신까지의 소요 시간을 확인하는 CLI 도구입니다.
+Python 표준 라이브러리만 사용합니다.
+
+### 실행
+
+```bash
+python3 tools/https_check.py https://YOUR_DOMAIN/healthz
+```
+
+### 종료 코드
+
+| 코드 | 의미 |
+|---|---|
+| 0 | 요청 정상 처리 |
+| 1 | HTTP 오류 또는 연결 오류 |
+| 2 | URL 인자 누락 또는 개수 오류 |
+
+### 자동 테스트
+
+```bash
+python3 -m unittest discover -s tests -v
+```
+
+Mock을 사용해 실제 서버 요청 없이 정상 응답·HTTP 404·연결 오류를 검증합니다.
+GitHub Actions에서 main 대상 PR과 main push 시 테스트를 실행합니다.
+
+### 검증 범위와 한계
+
+- HTTP 상태와 요청 소요 시간을 확인합니다.
+- 응답 본문·DB 연결·전체 업무 기능의 정상 여부는 검증하지 않습니다.
+- 자동 테스트는 오류 처리 로직을 검증하며 실제 서비스 가용성 점검과는 구분합니다.
